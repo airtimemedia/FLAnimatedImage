@@ -133,6 +133,10 @@
     }
 }
 
+- (void)clearFixedLoopRangeAndFinishAnimation {
+    self.fixedLoopRange = NSMakeRange(0, 0);
+    self.loopCountdown = 1;
+}
 
 #pragma mark - Life Cycle
 
@@ -393,7 +397,18 @@ static NSUInteger gcd(NSUInteger a, NSUInteger b)
             while (self.accumulator >= delayTime) {
                 self.accumulator -= delayTime;
                 self.currentFrameIndex++;
-                if (self.currentFrameIndex >= self.animatedImage.frameCount) {
+
+                if (self.fixedLoopRange.location > 0 && self.fixedLoopRange.length > 0) {
+                    NSUInteger lastLoopingFrame = self.fixedLoopRange.location + self.fixedLoopRange.length - 1;
+
+                    if (lastLoopingFrame > self.animatedImage.frameCount - 1) {
+                        FLLog(FLLogLevelWarn, @"Invalid fixed looping range: (%lu/%lu), clearing", (unsigned long)self.fixedLoopRange.location, (unsigned long)self.fixedLoopRange.length);
+                        self.fixedLoopRange = NSMakeRange(0, 0);
+                        self.currentFrameIndex = 0;
+                    } else if (self.currentFrameIndex > lastLoopingFrame) {
+                        self.currentFrameIndex = self.fixedLoopRange.location;
+                    }
+                } else if (self.currentFrameIndex >= self.animatedImage.frameCount) {
                     // If we've looped the number of times that this animated image describes, stop looping.
                     self.loopCountdown--;
                     if (self.loopCompletionBlock) {
@@ -404,8 +419,10 @@ static NSUInteger gcd(NSUInteger a, NSUInteger b)
                         [self stopAnimating];
                         return;
                     }
+
                     self.currentFrameIndex = 0;
                 }
+
                 // Calling `-setNeedsDisplay` will just paint the current frame, not the new frame that we may have moved to.
                 // Instead, set `needsDisplayWhenImageBecomesAvailable` to `YES` -- this will paint the new image once loaded.
                 self.needsDisplayWhenImageBecomesAvailable = YES;
